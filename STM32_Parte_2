@@ -21,8 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <string.h>  // Para usar strlen y strncpy
-#include <stdio.h>   // Para sprintf
+#include "string.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,7 +46,7 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t buffer[10];
+uint8_t buffer[6];
 uint8_t opcionSeleccionada = 0;  // Variable para guardar la opción seleccionada
 uint8_t comandoSPI[20];        // Buffer para enviar el comando por SPI
 /* USER CODE END PV */
@@ -57,7 +57,8 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
-
+void mostrarMenu(void);
+void solicitarComando(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -190,7 +191,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -255,9 +256,6 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(Led_A_GPIO_Port, Led_A_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ESP32_CS_GPIO_Port, ESP32_CS_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : BTN_Pin */
@@ -266,18 +264,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(BTN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : Led_A_Pin */
-  GPIO_InitStruct.Pin = Led_A_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(Led_A_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pin : ESP32_CS_Pin */
   GPIO_InitStruct.Pin = ESP32_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(ESP32_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
@@ -293,22 +284,45 @@ static void MX_GPIO_Init(void)
 //Solicita el comando al usuario y lo envía por SPI.
 
 void solicitarComando(void) {
-    char mensaje[] = "\nIngrese comando (LED,Tiempo en ms):\r\n";
+    char mensaje[] = "\nIngrese comando (Ejemplo: 1,0500 para LED 1, 500ms):\r\n";
     HAL_UART_Transmit(&huart2, (uint8_t *)mensaje, strlen(mensaje), HAL_MAX_DELAY);
 
-    // Recibir el comando del usuario (por ejemplo, "1,500")
+    // Recibir el comando del usuario
     HAL_UART_Receive(&huart2, buffer, sizeof(buffer), HAL_MAX_DELAY);
 
-    // Copiar el comando al buffer SPI y enviarlo
-    strncpy((char *)comandoSPI, (char *)buffer, sizeof(comandoSPI));
-    HAL_SPI_Transmit(&hspi1, comandoSPI, strlen((char *)comandoSPI), HAL_MAX_DELAY);
+    // Validar la longitud del comando
+    if (strlen((char *)buffer) < 6) {
+        char mensajeError[] = "\nComando inválido. Intente de nuevo.\r\n";
+        HAL_UART_Transmit(&huart2, (uint8_t *)mensajeError, strlen(mensajeError), HAL_MAX_DELAY);
+        mostrarMenu();  // Volver al menú principal
+        return;
+    }
 
-    // Confirmar que el comando fue enviado
+    // Prepara los datos para enviar al ESP32
+    comandoSPI[0] = buffer[0];  // Comando LED (1, 2, o 3)
+    comandoSPI[1] = ',';        // Separador
+    comandoSPI[2] = buffer[2];  // Milésimas
+    comandoSPI[3] = buffer[3];  // Centenas
+    comandoSPI[4] = buffer[4];  // Decenas
+    comandoSPI[5] = buffer[5];  // Unidades
+
+    // Baja CS para comenzar la transmisión
+    HAL_GPIO_WritePin(ESP32_CS_GPIO_Port, ESP32_CS_Pin, GPIO_PIN_RESET);
+
+    // Transmite los datos por SPI
+    HAL_SPI_Transmit(&hspi1, comandoSPI, 6, HAL_MAX_DELAY);
+
+    // Sube CS para terminar la transmisión
+    HAL_Delay(10);
+    HAL_GPIO_WritePin(ESP32_CS_GPIO_Port, ESP32_CS_Pin, GPIO_PIN_SET);
+
+    // Confirmación por UART
     char confirmacion[] = "\nComando enviado por SPI.\r\n";
     HAL_UART_Transmit(&huart2, (uint8_t *)confirmacion, strlen(confirmacion), HAL_MAX_DELAY);
 
-    mostrarMenu();  // Mostrar el menú principal de nuevo
+    mostrarMenu();  // Volver al menú principal
 }
+
 
 //Muestra el menú principal por UART.
 void mostrarMenu(void) {
