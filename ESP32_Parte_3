@@ -108,18 +108,22 @@ int tiempo(char numero) {
   return numero - '0'; // Convierte el carácter ASCII al valor numérico
 }
 
-void onRequest(){
-  // Lee el valor analógico del potenciómetro
-  unsigned int valorPot = analogRead(pot); // Leer el valor del potenciometro (0 - 4095)
-  int val=map(valorPot, 0, 4095, 0, 15);  // Escalar de 0-4095 a 0-15
-  // Envía la variable por I2C
-  Wire.print(val);
-  // Imprime en el monitor serial para saber que valor se está enviando
-  Serial.print("onRequest:");
-  Serial.println(val);
+void onRequest() {
+    // Lee el valor analógico del potenciómetro (0 - 4095)
+    unsigned int valorPot = analogRead(pot);  
+
+    // Crear un buffer de 5 caracteres para 4 dígitos más el terminador nulo
+    char buffer[5];  
+    snprintf(buffer, sizeof(buffer), "%04u", valorPot);  // Formatear con 4 dígitos (rellenando con ceros)
+
+    // Enviar la cadena por I2C (cast explícito a uint8_t*)
+    Wire.write((const uint8_t*)buffer, 4);  
+
+    // Imprimir el valor en el monitor serial para depuración
+    Serial.print("onRequest: ");
+    Serial.println(buffer);
 }
 
-// Cuando recibe del núcleo
 void onReceive(int len){
   Serial.printf("onReceive[%d]:",len);
   while(Wire.available()){
