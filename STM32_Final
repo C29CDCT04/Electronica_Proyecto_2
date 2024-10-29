@@ -118,7 +118,7 @@ int main(void)
 
 	    if (buffer[0] == '1') {  // Si elige opción 1
 	        solicitarComando();   // Pedir comando y enviarlo por SPI
-	    } else if (buffer[0] == '2') {
+	    } else if (buffer[0] == '2') { // Si elige opción 2
 	    	obtenerMedicionI2C();
 	    } else {
 	        char mensajeError[] = "\nOpcion invalida. Intente de nuevo.\r\n";
@@ -369,7 +369,11 @@ void obtenerMedicionI2C(void) {
 
     // Solicitar valor al ESP32 por I2C
     if (HAL_I2C_Master_Receive(&hi2c1, deviceAddress << 1, valorPot, sizeof(valorPot), HAL_MAX_DELAY) == HAL_OK) {
-        char resultado[50];
+
+    	HAL_Delay(100);
+    	HAL_I2C_Master_Receive(&hi2c1, deviceAddress << 1, valorPot, sizeof(valorPot), HAL_MAX_DELAY);
+
+    	char resultado[37];
         snprintf(resultado, sizeof(resultado), "\nValor del potenciometro: %s\r\n", valorPot);
         HAL_UART_Transmit(&huart2, (uint8_t *)resultado, strlen(resultado), HAL_MAX_DELAY);
     } else {
@@ -379,7 +383,6 @@ void obtenerMedicionI2C(void) {
 
     mostrarMenu();  // Volver al menú principal
 }
-
 
 //Muestra el menú principal por UART.
 void mostrarMenu(void) {
